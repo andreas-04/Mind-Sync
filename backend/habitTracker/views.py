@@ -93,15 +93,27 @@ class SendMessage(APIView):
             thread_id=habit_tracker.user.thread_id,
             assistant_id="asst_Sy64Dch7BiGm7Q54v14m3eyo",
          )
-         time.sleep(5)
-         messages = client.beta.threads.messages.list(
-            thread_id=habit_tracker.user.thread_id
-         )
-         if len(messages.data) > 1:
+         max_wait = 60
+         poll_interval = 1
+         elapsed = 0
+         while run.status in ['queued', 'in_progress', 'cancelling'] and elapsed < max_wait:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            run = client.beta.threads.runs.retrieve(
+               thread_id=habit_tracker.user.thread_id,
+               run_id=run.id
+            )
+         if run.status == 'completed':
+            messages = client.beta.threads.messages.list(
+               thread_id=habit_tracker.user.thread_id
+            )
             assistant_messages = [msg for msg in messages.data if msg.assistant_id is not None]
-            latest_assistant_message = assistant_messages[0]
-            latest_message_content = latest_assistant_message.content[0].text.value
-         return Response(latest_message_content, status=status.HTTP_200_OK)
+            if assistant_messages:
+               latest_message_content = assistant_messages[0].content[0].text.value
+               return Response(latest_message_content, status=status.HTTP_200_OK)
+         if elapsed >= max_wait:
+            return Response({"error": "Assistant response timed out after 60 seconds"}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+         return Response({"error": f"Assistant run failed with status: {run.status}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
       
       return Response(status=status.HTTP_400_BAD_REQUEST)
    

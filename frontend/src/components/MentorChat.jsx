@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import {Grid, Typography, Card, Textarea, IconButton, Select, Option, Stack } from '@mui/joy';
+import {Grid, Typography, Card, Textarea, IconButton, Select, Option, Stack, CircularProgress } from '@mui/joy';
 import SubdirectoryArrowLeftIcon from '@mui/icons-material/SubdirectoryArrowLeft';
 import habitApi from '../../habitApi';
 import PropTypes from 'prop-types';
@@ -11,6 +11,8 @@ export default function MentorChat({habitId}){
     const [messages, setMessages] = useState([]);
     const [toggle, setToggle] = useState(false);
     const [setupMenu , setSetupMenu ] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [chatError, setChatError] = useState(null);
 
     const [configId, setConfigId] = useState(0)
     const [communicationStyle, setCommunicationStyle] = useState("");
@@ -38,6 +40,7 @@ export default function MentorChat({habitId}){
     }, []);
     const handleMessageSend = async(event) =>{
         event.preventDefault();
+        if (!inputValue.trim() || isLoading) return;
         let lastMessage;
 
         setMessages(prevMessages => {
@@ -52,12 +55,20 @@ export default function MentorChat({habitId}){
         const messageData = {
             "message": lastMessage
         };
-        const response = await habitApi.postMessage(habitId, messageData)
-        setMessages(prevMessages => {
-            const newMessage = response.data;
-            const updatedMessages = [...prevMessages, newMessage];
-            return updatedMessages;
-        });
+        setIsLoading(true);
+        setChatError(null);
+        try {
+            const response = await habitApi.postMessage(habitId, messageData)
+            setMessages(prevMessages => {
+                const newMessage = response.data;
+                const updatedMessages = [...prevMessages, newMessage];
+                return updatedMessages;
+            });
+        } catch {
+            setChatError("Failed to get a response. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
     }
     const toggleChat = () =>{
         setToggle(!toggle)
@@ -166,6 +177,15 @@ export default function MentorChat({habitId}){
                                 <Typography key={index} align="left" level='body-lg'><strong>./msg/mind-sync-000{index}/</strong> {message}</Typography>
                             </>
                         )) : <></>}
+                        {!setupMenu && isLoading && (
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ my: 0.5 }}>
+                                <Typography level='body-lg'><strong>./msg/mind-sync-generating/</strong></Typography>
+                                <CircularProgress size="sm" />
+                            </Stack>
+                        )}
+                        {!setupMenu && chatError && (
+                            <Typography level='body-sm' color="danger" sx={{ my: 0.5 }}>{chatError}</Typography>
+                        )}
                         </Grid>
                         <Grid item xs={.5}>
                             
@@ -182,7 +202,7 @@ export default function MentorChat({habitId}){
                                 {/* <Textarea minRows={3} onBlur={(e) => handleInputChange(e)} placeholder={"Send a Message!"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} /> */}
                             </Grid>
                             <Grid item xs={.45}>
-                                <IconButton sx={{height:"87px"}}variant='outlined' onClick={handleMessageSend}><SubdirectoryArrowLeftIcon></SubdirectoryArrowLeftIcon></IconButton>
+                                <IconButton sx={{height:"87px"}}variant='outlined' onClick={handleMessageSend} disabled={isLoading}><SubdirectoryArrowLeftIcon></SubdirectoryArrowLeftIcon></IconButton>
                             </Grid>
                         
                     </Grid>
